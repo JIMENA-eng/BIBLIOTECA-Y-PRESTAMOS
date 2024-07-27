@@ -67,13 +67,14 @@ def authenticate_user(dni, password):
 def browse_photo():
     filename = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")])
     if filename:
-        photo_path.set(filename)
+        photo_path_entry.delete(0, 'end')  # Limpiar el contenido actual
+        photo_path_entry.insert(0, filename)  # Insertar la nueva ruta de la foto
 
 def register():
     name = entry_name.get()
     dni = entry_dni.get()
     email = entry_email.get()
-    photo = photo_path.get()
+    photo = photo_path_entry.get()
 
     if not name or not dni or not email or not photo:
         messagebox.showwarning("Campos Vacíos", "Por favor complete todos los campos.")
@@ -102,7 +103,7 @@ def login():
 
 # Configuración de la GUI
 def setup_gui():
-    global entry_name, entry_dni, entry_email, photo_path
+    global entry_name, entry_dni, entry_email, photo_path_entry
     global entry_dni_login, entry_password_login
     
     root = Tk()
@@ -122,8 +123,8 @@ def setup_gui():
     entry_email.grid(row=2, column=1, padx=10, pady=10)
 
     Label(root, text="Foto").grid(row=3, column=0, padx=10, pady=10)
-    photo_path = Entry(root)
-    photo_path.grid(row=3, column=1, padx=10, pady=10)
+    photo_path_entry = Entry(root)
+    photo_path_entry.grid(row=3, column=1, padx=10, pady=10)
     Button(root, text="Buscar Foto", command=browse_photo).grid(row=3, column=2, padx=10, pady=10)
 
     Button(root, text="Registrar", command=register).grid(row=4, column=1, pady=10)
