@@ -1,7 +1,8 @@
 import sqlite3
 import hashlib
 import os
-from PIL import Image
+import random
+from PIL import Image, ImageTk
 from tkinter import Tk, Label, Button, Entry, filedialog, messagebox
 
 # Crear una conexión con la base de datos SQLite
@@ -29,24 +30,25 @@ def hash_password(password):
 def verify_password(stored_password, provided_password):
     return stored_password == hash_password(provided_password)
 
+# Función para generar una contraseña única de 4 dígitos
+def generate_password():
+    return f"{random.randint(1000, 9999)}"
+
 # Registrar un nuevo usuario
-def register_user(name, dni, email, photo_path):
+def register_user(name, dni, email, photo_path, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    
-    # Generar un hash de la contraseña
-    password = hash_password(dni)  # Usar el DNI como contraseña por simplicidad
     
     # Insertar datos en la base de datos
     c.execute('''
         INSERT INTO users (name, dni, email, photo_path, password)
         VALUES (?, ?, ?, ?, ?)
-    ''', (name, dni, email, photo_path, password))
+    ''', (name, dni, email, photo_path, hash_password(password)))
     
     conn.commit()
     conn.close()
     
-    messagebox.showinfo("Registro Exitoso", f"Usuario registrado con DNI {dni} y contraseña única generada.")
+    messagebox.showinfo("Registro Exitoso", f"Usuario registrado con DNI {dni}.\nContraseña única generada: {password}")
 
 # Autenticar usuario
 def authenticate_user(dni, password):
@@ -70,6 +72,20 @@ def browse_photo():
         photo_path_entry.delete(0, 'end')  # Limpiar el contenido actual
         photo_path_entry.insert(0, filename)  # Insertar la nueva ruta de la foto
 
+        # Mostrar la foto en la GUI
+        image = Image.open(filename)
+        image.thumbnail((200, 200))  # Redimensionar la imagen para que quepa en la interfaz
+        photo_image = ImageTk.PhotoImage(image)
+
+        # Actualizar el Label con la imagen
+        global photo_label
+        if 'photo_label' in globals():
+            photo_label.config(image=photo_image)
+            photo_label.image = photo_image
+        else:
+            photo_label = Label(root, image=photo_image)
+            photo_label.grid(row=4, column=1, padx=10, pady=10)
+
 def register():
     name = entry_name.get()
     dni = entry_dni.get()
@@ -84,13 +100,15 @@ def register():
         messagebox.showerror("Archivo No Encontrado", "El archivo de la foto no existe.")
         return
 
+    password = generate_password()
+
     # Copiar la foto al directorio de fotos
     if not os.path.exists('photos'):
         os.makedirs('photos')
     photo_dest = os.path.join('photos', os.path.basename(photo))
     Image.open(photo).save(photo_dest)
     
-    register_user(name, dni, email, photo_dest)
+    register_user(name, dni, email, photo_dest, password)
 
 def login():
     dni = entry_dni_login.get()
@@ -104,7 +122,7 @@ def login():
 # Configuración de la GUI
 def setup_gui():
     global entry_name, entry_dni, entry_email, photo_path_entry
-    global entry_dni_login, entry_password_login
+    global entry_dni_login, entry_password_login, root
     
     root = Tk()
     root.title("Registro e Inicio de Sesión")
@@ -127,18 +145,18 @@ def setup_gui():
     photo_path_entry.grid(row=3, column=1, padx=10, pady=10)
     Button(root, text="Buscar Foto", command=browse_photo).grid(row=3, column=2, padx=10, pady=10)
 
-    Button(root, text="Registrar", command=register).grid(row=4, column=1, pady=10)
+    Button(root, text="Registrar", command=register).grid(row=5, column=1, pady=10)
 
     # Inicio de sesión
-    Label(root, text="DNI").grid(row=5, column=0, padx=10, pady=10)
+    Label(root, text="DNI").grid(row=6, column=0, padx=10, pady=10)
     entry_dni_login = Entry(root)
-    entry_dni_login.grid(row=5, column=1, padx=10, pady=10)
+    entry_dni_login.grid(row=6, column=1, padx=10, pady=10)
 
-    Label(root, text="Contraseña").grid(row=6, column=0, padx=10, pady=10)
+    Label(root, text="Contraseña").grid(row=7, column=0, padx=10, pady=10)
     entry_password_login = Entry(root, show="*")
-    entry_password_login.grid(row=6, column=1, padx=10, pady=10)
+    entry_password_login.grid(row=7, column=1, padx=10, pady=10)
 
-    Button(root, text="Iniciar Sesión", command=login).grid(row=7, column=1, pady=10)
+    Button(root, text="Iniciar Sesión", command=login).grid(row=8, column=1, pady=10)
 
     root.mainloop()
 
