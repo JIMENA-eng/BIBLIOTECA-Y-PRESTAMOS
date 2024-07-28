@@ -1,22 +1,10 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+from datetime import datetime
 
-# Inicialización de la ventana principal
-root = tk.Tk()
-root.title("Aplicación CRUD con Base de Datos")
-root.geometry("700x400")
-
-# Variables para el CRUD
-miId = tk.StringVar()
-miTitulo = tk.StringVar()
-miAutor = tk.StringVar()
-miCodigo = tk.StringVar()
-miDescripcion = tk.StringVar()
-miSector = tk.StringVar()
-
-# Función para conectar y crear la base de datos
-def conexionBBDD():
+# Función para conectar a la base de datos de libros y crear la tabla
+def conexionBBDD_libros():
     miConexion = sqlite3.connect("base.db")
     miCursor = miConexion.cursor()
     try:
@@ -25,189 +13,148 @@ def conexionBBDD():
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
             TITULO TEXT NOT NULL,
             AUTOR TEXT NOT NULL,
-            CODIGO TEXT NOT NULL,
+            CODIGO TEXT NOT NULL UNIQUE,
             DESCRIPCION TEXT,
             SECTOR TEXT NOT NULL)
             ''')
-        messagebox.showinfo("CONEXIÓN", "Base de Datos Creada exitosamente")
-    except Exception as e:
-        messagebox.showinfo("CONEXIÓN", f"Error al crear la base de datos: {e}")
-    finally:
-        miConexion.close()
-
-# Función para eliminar la base de datos
-def eliminarBBDD():
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
-    if messagebox.askyesno(message="¿Los Datos se perderán definitivamente, desea continuar?", title="ADVERTENCIA"):
-        miCursor.execute("DROP TABLE IF EXISTS libro")
-    miConexion.commit()
-    miConexion.close()
-    limpiarCampos()
-    mostrar()
-
-# Función para salir de la aplicación
-def salirAplicacion():
-    if messagebox.askquestion("Salir", "¿Está seguro que desea salir de la Aplicación?") == "yes":
-        root.destroy()
-
-# Función para limpiar los campos de entrada
-def limpiarCampos():
-    miId.set("")
-    miTitulo.set("")
-    miAutor.set("")
-    miCodigo.set("")
-    miDescripcion.set("")
-    miSector.set("")
-
-# Función para mostrar información sobre la aplicación
-def mensaje():
-    acerca = '''
-    Aplicación CRUD
-    Versión 1.0
-    Tecnología Python Tkinter
-    '''
-    messagebox.showinfo(title="INFORMACIÓN", message=acerca)
-
-# Función para crear un nuevo registro
-def crear():
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
-    try:
-        datos = (miTitulo.get(), miAutor.get(), miCodigo.get(), miDescripcion.get(), miSector.get())
-        miCursor.execute("INSERT INTO libro (TITULO, AUTOR, CODIGO, DESCRIPCION, SECTOR) VALUES (?, ?, ?, ?, ?)", datos)
         miConexion.commit()
     except Exception as e:
-        messagebox.showwarning("ADVERTENCIA", f"Ocurrió un error al crear el registro: {e}")
+        messagebox.showinfo("CONEXIÓN LIBROS", f"Error al conectar a la base de datos de libros: {e}")
     finally:
         miConexion.close()
-    limpiarCampos()
-    mostrar()
 
-# Función para mostrar los registros en la tabla
-def mostrar():
+# Función para conectar a la base de datos de préstamos y crear la tabla
+def conexionBBDD_prestamos():
+    miConexion = sqlite3.connect("prestamos.db")
+    miCursor = miConexion.cursor()
+    try:
+        miCursor.execute('''
+            CREATE TABLE IF NOT EXISTS prestamo (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            CODIGO_LIBRO TEXT NOT NULL,
+            FECHA_PRESTAMO TEXT NOT NULL,
+            ESTADO TEXT NOT NULL,
+            FOREIGN KEY (CODIGO_LIBRO) REFERENCES libro(CODIGO))
+            ''')
+        miConexion.commit()
+    except Exception as e:
+        messagebox.showinfo("CONEXIÓN PRESTAMOS", f"Error al conectar a la base de datos de préstamos: {e}")
+    finally:
+        miConexion.close()
+
+# Función para mostrar la ventana con la información del libro
+def mostrar_informacion_libro(codigo):
+    miConexion = sqlite3.connect("base.db")
+    miCursor = miConexion.cursor()
+    miCursor.execute("SELECT * FROM libro WHERE CODIGO=?", (codigo,))
+    libro = miCursor.fetchone()
+    miConexion.close()
+
+    if libro:
+        ventana_libro = tk.Toplevel(root)
+        ventana_libro.title("Información del Libro")
+        ventana_libro.geometry("400x300")
+
+        tk.Label(ventana_libro, text="Título:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[1]).pack(pady=5)
+        tk.Label(ventana_libro, text="Autor:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[2]).pack(pady=5)
+        tk.Label(ventana_libro, text="Código:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[3]).pack(pady=5)
+        tk.Label(ventana_libro, text="Descripción:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[4] if libro[4] else "N/A").pack(pady=5)
+        tk.Label(ventana_libro, text="Sector:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[5]).pack(pady=5)
+
+        def prestar_libro():
+            miConexion = sqlite3.connect("prestamos.db")
+            miCursor = miConexion.cursor()
+            fecha_prestamo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                miCursor.execute("INSERT INTO prestamo (CODIGO_LIBRO, FECHA_PRESTAMO, ESTADO) VALUES (?, ?, ?)",
+                                 (codigo, fecha_prestamo, "Prestado"))
+                miConexion.commit()
+                messagebox.showinfo("Éxito", "El libro ha sido prestado.")
+            except Exception as e:
+                messagebox.showwarning("ADVERTENCIA", f"Error al registrar el préstamo: {e}")
+            finally:
+                miConexion.close()
+                ventana_libro.destroy()
+
+        tk.Button(ventana_libro, text="Prestar", command=prestar_libro).pack(pady=10)
+
+# Función para buscar libros por código y mostrar resultados
+def buscar_libros():
+    codigo = entry_codigo.get()
     miConexion = sqlite3.connect("base.db")
     miCursor = miConexion.cursor()
     registros = tree.get_children()
     for elemento in registros:
         tree.delete(elemento)
-    try:
-        miCursor.execute("SELECT * FROM libro")
-        for row in miCursor:
-            tree.insert("", 0, text=row[0], values=(row[1], row[2], row[3], row[4], row[5]))
-    except Exception as e:
-        messagebox.showwarning("ADVERTENCIA", f"Error al mostrar los registros: {e}")
-    finally:
-        miConexion.close()
 
-# Función para seleccionar un registro desde la tabla
+    if codigo:
+        try:
+            miCursor.execute("SELECT * FROM libro WHERE CODIGO=?", (codigo,))
+            libro = miCursor.fetchone()
+            if libro:
+                # Verifica el número de columnas en la tupla libro
+                if len(libro) >= 6:
+                    tree.insert("", 0, text=libro[0], values=(libro[1], libro[2], libro[3], libro[4], libro[5]))
+                else:
+                    messagebox.showwarning("ADVERTENCIA", "Datos del libro incompletos.")
+            else:
+                messagebox.showinfo("Resultado", "No se encontró ningún libro con el código proporcionado.")
+        except Exception as e:
+            messagebox.showwarning("ADVERTENCIA", f"Error al buscar el libro: {e}")
+    else:
+        messagebox.showwarning("Advertencia", "Por favor, ingrese un código para buscar.")
+
+    miConexion.close()
+
+# Función para manejar el doble clic en la tabla
 def seleccionarUsandoClick(event):
     item = tree.identify('item', event.x, event.y)
-    miId.set(tree.item(item, "text"))
-    miTitulo.set(tree.item(item, "values")[0])
-    miAutor.set(tree.item(item, "values")[1])
-    miCodigo.set(tree.item(item, "values")[2])
-    miDescripcion.set(tree.item(item, "values")[3])
-    miSector.set(tree.item(item, "values")[4])
+    if item:
+        codigo = tree.item(item, "values")[2]
+        mostrar_informacion_libro(codigo)
 
-# Creación de la tabla para mostrar los datos
+# Inicialización de la ventana principal
+root = tk.Tk()
+root.title("Aplicación de Biblioteca")
+root.geometry("800x400")
+
+# Definición de la tabla para mostrar los resultados
 tree = ttk.Treeview(root, height=10, columns=('#0', '#1', '#2', '#3', '#4'))
-tree.place(x=0, y=130)
+tree.place(x=0, y=80)
 tree.column('#0', width=50)
 tree.heading('#0', text="ID", anchor=tk.CENTER)
 tree.heading('#1', text="Título", anchor=tk.CENTER)
-tree.heading('#2', text="Autor", anchor=tk.CENTER)
-tree.heading('#3', text="Código", anchor=tk.CENTER)
-tree.heading('#4', text="Descripción", anchor=tk.CENTER)
-tree.heading('#5', text="Sector", anchor=tk.CENTER)
-tree.column('#5', width=100)
+tree.heading('#2', text="Código", anchor=tk.CENTER)
+tree.heading('#3', text="Descripción", anchor=tk.CENTER)
+tree.heading('#4', text="Sector", anchor=tk.CENTER)
 
-# Vinculación del evento para seleccionar un registro
+# Vinculación del evento para seleccionar un libro
 tree.bind("<Double-1>", seleccionarUsandoClick)
 
-# Función para actualizar un registro
-def actualizar():
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
-    try:
-        datos = (miTitulo.get(), miAutor.get(), miCodigo.get(), miDescripcion.get(), miSector.get(), miId.get())
-        miCursor.execute("UPDATE libro SET TITULO=?, AUTOR=?, CODIGO=?, DESCRIPCION=?, SECTOR=? WHERE ID=?", datos)
-        miConexion.commit()
-    except Exception as e:
-        messagebox.showwarning("ADVERTENCIA", f"Ocurrió un error al actualizar el registro: {e}")
-    finally:
-        miConexion.close()
-    limpiarCampos()
-    mostrar()
+# Creación de los widgets
+tk.Label(root, text="Buscar por Código:").pack(pady=10)
+entry_codigo = tk.Entry(root)
+entry_codigo.pack(pady=5)
 
-# Función para borrar un registro
-def borrar():
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
-    try:
-        if messagebox.askyesno(message="¿Realmente desea eliminar el registro?", title="ADVERTENCIA"):
-            miCursor.execute("DELETE FROM libro WHERE ID=?", (miId.get(),))
-            miConexion.commit()
-    except Exception as e:
-        messagebox.showwarning("ADVERTENCIA", f"Ocurrió un error al eliminar el registro: {e}")
-    finally:
-        miConexion.close()
-    limpiarCampos()
-    mostrar()
+tk.Button(root, text="Buscar", command=buscar_libros).pack(pady=10)
 
 # Creación de los menús
 menubar = tk.Menu(root)
 menubasedat = tk.Menu(menubar, tearoff=0)
-menubasedat.add_command(label="Crear/Conectar Base de Datos", command=conexionBBDD)
-menubasedat.add_command(label="Eliminar Base de Datos", command=eliminarBBDD)
-menubasedat.add_command(label="Salir", command=salirAplicacion)
+menubasedat.add_command(label="Conectar Base de Datos Libros", command=conexionBBDD_libros)
+menubasedat.add_command(label="Conectar Base de Datos Prestamos", command=conexionBBDD_prestamos)
 menubar.add_cascade(label="Inicio", menu=menubasedat)
 
-ayudamenu = tk.Menu(menubar, tearoff=0)
-ayudamenu.add_command(label="Resetear Campos", command=limpiarCampos)
-ayudamenu.add_command(label="Acerca", command=mensaje)
-menubar.add_cascade(label="Ayuda", menu=ayudamenu)
-
-# Creación de etiquetas y cajas de texto
-l1 = tk.Label(root, text="ID")
-l1.place(x=50, y=10)
-e1 = tk.Entry(root, textvariable=miId, state='readonly')
-e1.place(x=100, y=10)
-
-l2 = tk.Label(root, text="Título")
-l2.place(x=50, y=40)
-e2 = tk.Entry(root, textvariable=miTitulo, width=50)
-e2.place(x=100, y=40)
-
-l3 = tk.Label(root, text="Autor")
-l3.place(x=50, y=70)
-e3 = tk.Entry(root, textvariable=miAutor)
-e3.place(x=100, y=70)
-
-l4 = tk.Label(root, text="Código")
-l4.place(x=50, y=100)
-e4 = tk.Entry(root, textvariable=miCodigo)
-e4.place(x=100, y=100)
-
-l5 = tk.Label(root, text="Descripción")
-l5.place(x=50, y=130)
-e5 = tk.Entry(root, textvariable=miDescripcion, width=50)
-e5.place(x=100, y=130)
-
-l6 = tk.Label(root, text="Sector")
-l6.place(x=50, y=160)
-e6 = tk.Entry(root, textvariable=miSector)
-e6.place(x=100, y=160)
-
-# Creación de botones
-b1 = tk.Button(root, text="Crear Registro", command=crear)
-b1.place(x=50, y=200)
-b2 = tk.Button(root, text="Modificar Registro", command=actualizar)
-b2.place(x=180, y=200)
-b3 = tk.Button(root, text="Mostrar Lista", command=mostrar)
-b3.place(x=320, y=200)
-b4 = tk.Button(root, text="Eliminar Registro", bg="red", command=borrar)
-b4.place(x=450, y=200)
-
 root.config(menu=menubar)
+
+# Inicialización de las bases de datos
+conexionBBDD_libros()
+conexionBBDD_prestamos()
+
+# Ejecutar la aplicación
 root.mainloop()
