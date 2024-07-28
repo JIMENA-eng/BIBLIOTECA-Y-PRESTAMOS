@@ -1,114 +1,112 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 import sqlite3
-from datetime import datetime
 
 # Crear la base de datos y las tablas si no existen
 def create_db():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('base.db')
     c = conn.cursor()
     c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            dni TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            photo_path TEXT,
-            password TEXT NOT NULL
+        CREATE TABLE IF NOT EXISTS libro (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            TITULO TEXT NOT NULL,
+            AUTOR TEXT NOT NULL,
+            CODIGO TEXT NOT NULL,
+            DESCRIPCION TEXT,
+            SECTOR TEXT NOT NULL
         )
     ''')
     conn.commit()
     conn.close()
 
-def create_prestamos_db():
-    conn = sqlite3.connect('prestamos.db')
+# Función para buscar libros por sector y título
+def buscar_libros(sector, titulo_similar):
+    conn = sqlite3.connect('base.db')
     c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS prestamos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            dni_usuario TEXT NOT NULL,
-            codigo_libro TEXT NOT NULL,
-            fecha_prestamo TEXT NOT NULL,
-            FOREIGN KEY (dni_usuario) REFERENCES users(dni)
-        )
-    ''')
-    conn.commit()
+    query = "SELECT * FROM libro WHERE SECTOR=? AND TITULO LIKE ?"
+    c.execute(query, (sector, f"%{titulo_similar}%"))
+    libros = c.fetchall()
+    conn.close()
+    return libros
+
+# Mostrar la información del libro seleccionado
+def mostrar_info_libro(id_libro):
+    conn = sqlite3.connect('base.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM libro WHERE ID=?", (id_libro,))
+    libro = c.fetchone()
     conn.close()
 
-# Buscar un usuario por DNI
-def buscar_usuario_por_dni(dni):
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE dni=?", (dni,))
-    usuario = c.fetchone()
-    conn.close()
-    return usuario
+    if libro:
+        ventana_libro = tk.Toplevel(root)
+        ventana_libro.title("Información del Libro")
+        ventana_libro.geometry("400x300")
 
-# Registrar un préstamo en la base de datos
-def registrar_prestamo(dni, codigo_libro):
-    conn = sqlite3.connect('prestamos.db')
-    c = conn.cursor()
-    fecha_prestamo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        c.execute("INSERT INTO prestamos (dni_usuario, codigo_libro, fecha_prestamo) VALUES (?, ?, ?)",
-                  (dni, codigo_libro, fecha_prestamo))
-        conn.commit()
-        messagebox.showinfo("Éxito", "Préstamo registrado exitosamente.")
-    except Exception as e:
-        messagebox.showwarning("ADVERTENCIA", f"Error al registrar el préstamo: {e}")
-    finally:
-        conn.close()
-
-# Mostrar la información del usuario y permitir el préstamo
-def mostrar_info_usuario():
-    dni = entry_dni.get()
-    libro_codigo = entry_codigo_libro.get()
-    usuario = buscar_usuario_por_dni(dni)
-    
-    if usuario:
-        ventana_usuario = tk.Toplevel(root)
-        ventana_usuario.title("Información del Usuario")
-        ventana_usuario.geometry("400x300")
-
-        tk.Label(ventana_usuario, text="Nombre:").pack(pady=5)
-        tk.Label(ventana_usuario, text=usuario[1]).pack(pady=5)
-        tk.Label(ventana_usuario, text="DNI:").pack(pady=5)
-        tk.Label(ventana_usuario, text=usuario[2]).pack(pady=5)
-        tk.Label(ventana_usuario, text="Email:").pack(pady=5)
-        tk.Label(ventana_usuario, text=usuario[3]).pack(pady=5)
-        tk.Label(ventana_usuario, text="Foto:").pack(pady=5)
-        tk.Label(ventana_usuario, text=usuario[4] if usuario[4] else "N/A").pack(pady=5)
-
-        tk.Label(ventana_usuario, text="Código del Libro a Prestar:").pack(pady=10)
-        tk.Label(ventana_usuario, text=libro_codigo).pack(pady=5)
-
-        def prestar_libro():
-            registrar_prestamo(dni, libro_codigo)
-            ventana_usuario.destroy()
-
-        tk.Button(ventana_usuario, text="Prestar Libro", command=prestar_libro).pack(pady=10)
+        tk.Label(ventana_libro, text="Título:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[1]).pack(pady=5)
+        tk.Label(ventana_libro, text="Autor:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[2]).pack(pady=5)
+        tk.Label(ventana_libro, text="Código:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[3]).pack(pady=5)
+        tk.Label(ventana_libro, text="Descripción:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[4] if libro[4] else "N/A").pack(pady=5)
+        tk.Label(ventana_libro, text="Sector:").pack(pady=5)
+        tk.Label(ventana_libro, text=libro[5]).pack(pady=5)
     else:
-        messagebox.showinfo("Resultado", "No se encontró ningún usuario con el DNI proporcionado.")
+        messagebox.showinfo("Resultado", "No se encontró el libro con el ID proporcionado.")
+
+# Función para mostrar los libros en la tabla según el sector seleccionado y el título buscado
+def mostrar_libros():
+    sector = combo_sector.get()
+    titulo_similar = entry_buscar.get()
+    if not sector:
+        messagebox.showwarning("Advertencia", "Por favor, seleccione un sector.")
+        return
+    
+    libros = buscar_libros(sector, titulo_similar)
+    for item in tree.get_children():
+        tree.delete(item)
+    
+    for libro in libros:
+        tree.insert("", "end", iid=libro[0], values=(libro[1], libro[2], libro[3]))
+
+# Manejar el doble clic en la tabla para mostrar información del libro
+def seleccionar_libro(event):
+    if tree.selection():
+        item = tree.selection()[0]
+        id_libro = tree.item(item, "iid")
+        mostrar_info_libro(id_libro)
 
 # Inicialización de la ventana principal
 root = tk.Tk()
-root.title("Sistema de Préstamos de Libros")
-root.geometry("400x200")
+root.title("Sistema de Libros")
+root.geometry("600x400")
 
-# Creación de los widgets
-tk.Label(root, text="DNI del Usuario:").pack(pady=10)
-entry_dni = tk.Entry(root)
-entry_dni.pack(pady=5)
+# Crear los widgets
+tk.Label(root, text="Seleccionar Sector:").pack(pady=10)
+combo_sector = tk.StringVar(value="Seleccionar")
+combo = ttk.Combobox(root, textvariable=combo_sector, values=["sociales", "INGENIERIA", "humanidades"])
+combo.pack(pady=5)
+combo.set("Seleccionar")
 
-tk.Label(root, text="Código del Libro:").pack(pady=10)
-entry_codigo_libro = tk.Entry(root)
-entry_codigo_libro.pack(pady=5)
+tk.Label(root, text="Buscar por Título:").pack(pady=10)
+entry_buscar = tk.Entry(root)
+entry_buscar.pack(pady=5)
 
-tk.Button(root, text="Buscar y Prestar", command=mostrar_info_usuario).pack(pady=20)
+tk.Button(root, text="Mostrar Libros", command=mostrar_libros).pack(pady=20)
 
-# Crear las bases de datos y tablas
+# Crear la tabla para mostrar los libros
+tree = ttk.Treeview(root, columns=("Título", "Autor", "Código"), show="headings")
+tree.heading("Título", text="Título")
+tree.heading("Autor", text="Autor")
+tree.heading("Código", text="Código")
+tree.pack(fill=tk.BOTH, expand=True)
+
+# Configurar el doble clic en la tabla
+tree.bind("<Double-1>", seleccionar_libro)
+
+# Crear la base de datos y tabla
 create_db()
-create_prestamos_db()
 
 # Ejecutar la aplicación
 root.mainloop()
