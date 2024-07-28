@@ -1,160 +1,114 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox
 import sqlite3
 from datetime import datetime
 
-# Función para conectar a la base de datos de libros y crear la tabla
-def conexionBBDD_libros():
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
+# Crear la base de datos y las tablas si no existen
+def create_db():
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            dni TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            photo_path TEXT,
+            password TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def create_prestamos_db():
+    conn = sqlite3.connect('prestamos.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS prestamos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dni_usuario TEXT NOT NULL,
+            codigo_libro TEXT NOT NULL,
+            fecha_prestamo TEXT NOT NULL,
+            FOREIGN KEY (dni_usuario) REFERENCES users(dni)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Buscar un usuario por DNI
+def buscar_usuario_por_dni(dni):
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE dni=?", (dni,))
+    usuario = c.fetchone()
+    conn.close()
+    return usuario
+
+# Registrar un préstamo en la base de datos
+def registrar_prestamo(dni, codigo_libro):
+    conn = sqlite3.connect('prestamos.db')
+    c = conn.cursor()
+    fecha_prestamo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        miCursor.execute('''
-            CREATE TABLE IF NOT EXISTS libro (
-            ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            TITULO TEXT NOT NULL,
-            AUTOR TEXT NOT NULL,
-            CODIGO TEXT NOT NULL UNIQUE,
-            DESCRIPCION TEXT,
-            SECTOR TEXT NOT NULL)
-            ''')
-        miConexion.commit()
+        c.execute("INSERT INTO prestamos (dni_usuario, codigo_libro, fecha_prestamo) VALUES (?, ?, ?)",
+                  (dni, codigo_libro, fecha_prestamo))
+        conn.commit()
+        messagebox.showinfo("Éxito", "Préstamo registrado exitosamente.")
     except Exception as e:
-        messagebox.showinfo("CONEXIÓN LIBROS", f"Error al conectar a la base de datos de libros: {e}")
+        messagebox.showwarning("ADVERTENCIA", f"Error al registrar el préstamo: {e}")
     finally:
-        miConexion.close()
+        conn.close()
 
-# Función para conectar a la base de datos de préstamos y crear la tabla
-def conexionBBDD_prestamos():
-    miConexion = sqlite3.connect("prestamos.db")
-    miCursor = miConexion.cursor()
-    try:
-        miCursor.execute('''
-            CREATE TABLE IF NOT EXISTS prestamo (
-            ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            CODIGO_LIBRO TEXT NOT NULL,
-            FECHA_PRESTAMO TEXT NOT NULL,
-            ESTADO TEXT NOT NULL,
-            FOREIGN KEY (CODIGO_LIBRO) REFERENCES libro(CODIGO))
-            ''')
-        miConexion.commit()
-    except Exception as e:
-        messagebox.showinfo("CONEXIÓN PRESTAMOS", f"Error al conectar a la base de datos de préstamos: {e}")
-    finally:
-        miConexion.close()
+# Mostrar la información del usuario y permitir el préstamo
+def mostrar_info_usuario():
+    dni = entry_dni.get()
+    libro_codigo = entry_codigo_libro.get()
+    usuario = buscar_usuario_por_dni(dni)
+    
+    if usuario:
+        ventana_usuario = tk.Toplevel(root)
+        ventana_usuario.title("Información del Usuario")
+        ventana_usuario.geometry("400x300")
 
-# Función para mostrar la ventana con la información del libro
-def mostrar_informacion_libro(codigo):
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
-    miCursor.execute("SELECT * FROM libro WHERE CODIGO=?", (codigo,))
-    libro = miCursor.fetchone()
-    miConexion.close()
+        tk.Label(ventana_usuario, text="Nombre:").pack(pady=5)
+        tk.Label(ventana_usuario, text=usuario[1]).pack(pady=5)
+        tk.Label(ventana_usuario, text="DNI:").pack(pady=5)
+        tk.Label(ventana_usuario, text=usuario[2]).pack(pady=5)
+        tk.Label(ventana_usuario, text="Email:").pack(pady=5)
+        tk.Label(ventana_usuario, text=usuario[3]).pack(pady=5)
+        tk.Label(ventana_usuario, text="Foto:").pack(pady=5)
+        tk.Label(ventana_usuario, text=usuario[4] if usuario[4] else "N/A").pack(pady=5)
 
-    if libro:
-        ventana_libro = tk.Toplevel(root)
-        ventana_libro.title("Información del Libro")
-        ventana_libro.geometry("400x300")
-
-        tk.Label(ventana_libro, text="Título:").pack(pady=5)
-        tk.Label(ventana_libro, text=libro[1]).pack(pady=5)
-        tk.Label(ventana_libro, text="Autor:").pack(pady=5)
-        tk.Label(ventana_libro, text=libro[2]).pack(pady=5)
-        tk.Label(ventana_libro, text="Código:").pack(pady=5)
-        tk.Label(ventana_libro, text=libro[3]).pack(pady=5)
-        tk.Label(ventana_libro, text="Descripción:").pack(pady=5)
-        tk.Label(ventana_libro, text=libro[4] if libro[4] else "N/A").pack(pady=5)
-        tk.Label(ventana_libro, text="Sector:").pack(pady=5)
-        tk.Label(ventana_libro, text=libro[5]).pack(pady=5)
+        tk.Label(ventana_usuario, text="Código del Libro a Prestar:").pack(pady=10)
+        tk.Label(ventana_usuario, text=libro_codigo).pack(pady=5)
 
         def prestar_libro():
-            miConexion = sqlite3.connect("prestamos.db")
-            miCursor = miConexion.cursor()
-            fecha_prestamo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            try:
-                miCursor.execute("INSERT INTO prestamo (CODIGO_LIBRO, FECHA_PRESTAMO, ESTADO) VALUES (?, ?, ?)",
-                                 (codigo, fecha_prestamo, "Prestado"))
-                miConexion.commit()
-                messagebox.showinfo("Éxito", "El libro ha sido prestado.")
-            except Exception as e:
-                messagebox.showwarning("ADVERTENCIA", f"Error al registrar el préstamo: {e}")
-            finally:
-                miConexion.close()
-                ventana_libro.destroy()
+            registrar_prestamo(dni, libro_codigo)
+            ventana_usuario.destroy()
 
-        tk.Button(ventana_libro, text="Prestar", command=prestar_libro).pack(pady=10)
-
-# Función para buscar libros por código y mostrar resultados
-def buscar_libros():
-    codigo = entry_codigo.get()
-    miConexion = sqlite3.connect("base.db")
-    miCursor = miConexion.cursor()
-    registros = tree.get_children()
-    for elemento in registros:
-        tree.delete(elemento)
-
-    if codigo:
-        try:
-            miCursor.execute("SELECT * FROM libro WHERE CODIGO=?", (codigo,))
-            libro = miCursor.fetchone()
-            if libro:
-                # Verifica el número de columnas en la tupla libro
-                if len(libro) >= 6:
-                    tree.insert("", 0, text=libro[0], values=(libro[1], libro[2], libro[3], libro[4], libro[5]))
-                else:
-                    messagebox.showwarning("ADVERTENCIA", "Datos del libro incompletos.")
-            else:
-                messagebox.showinfo("Resultado", "No se encontró ningún libro con el código proporcionado.")
-        except Exception as e:
-            messagebox.showwarning("ADVERTENCIA", f"Error al buscar el libro: {e}")
+        tk.Button(ventana_usuario, text="Prestar Libro", command=prestar_libro).pack(pady=10)
     else:
-        messagebox.showwarning("Advertencia", "Por favor, ingrese un código para buscar.")
-
-    miConexion.close()
-
-# Función para manejar el doble clic en la tabla
-def seleccionarUsandoClick(event):
-    item = tree.identify('item', event.x, event.y)
-    if item:
-        codigo = tree.item(item, "values")[2]
-        mostrar_informacion_libro(codigo)
+        messagebox.showinfo("Resultado", "No se encontró ningún usuario con el DNI proporcionado.")
 
 # Inicialización de la ventana principal
 root = tk.Tk()
-root.title("Aplicación de Biblioteca")
-root.geometry("800x400")
-
-# Definición de la tabla para mostrar los resultados
-tree = ttk.Treeview(root, height=10, columns=('#0', '#1', '#2', '#3', '#4'))
-tree.place(x=0, y=80)
-tree.column('#0', width=50)
-tree.heading('#0', text="ID", anchor=tk.CENTER)
-tree.heading('#1', text="Título", anchor=tk.CENTER)
-tree.heading('#2', text="Código", anchor=tk.CENTER)
-tree.heading('#3', text="Descripción", anchor=tk.CENTER)
-tree.heading('#4', text="Sector", anchor=tk.CENTER)
-
-# Vinculación del evento para seleccionar un libro
-tree.bind("<Double-1>", seleccionarUsandoClick)
+root.title("Sistema de Préstamos de Libros")
+root.geometry("400x200")
 
 # Creación de los widgets
-tk.Label(root, text="Buscar por Código:").pack(pady=10)
-entry_codigo = tk.Entry(root)
-entry_codigo.pack(pady=5)
+tk.Label(root, text="DNI del Usuario:").pack(pady=10)
+entry_dni = tk.Entry(root)
+entry_dni.pack(pady=5)
 
-tk.Button(root, text="Buscar", command=buscar_libros).pack(pady=10)
+tk.Label(root, text="Código del Libro:").pack(pady=10)
+entry_codigo_libro = tk.Entry(root)
+entry_codigo_libro.pack(pady=5)
 
-# Creación de los menús
-menubar = tk.Menu(root)
-menubasedat = tk.Menu(menubar, tearoff=0)
-menubasedat.add_command(label="Conectar Base de Datos Libros", command=conexionBBDD_libros)
-menubasedat.add_command(label="Conectar Base de Datos Prestamos", command=conexionBBDD_prestamos)
-menubar.add_cascade(label="Inicio", menu=menubasedat)
+tk.Button(root, text="Buscar y Prestar", command=mostrar_info_usuario).pack(pady=20)
 
-root.config(menu=menubar)
-
-# Inicialización de las bases de datos
-conexionBBDD_libros()
-conexionBBDD_prestamos()
+# Crear las bases de datos y tablas
+create_db()
+create_prestamos_db()
 
 # Ejecutar la aplicación
 root.mainloop()
