@@ -19,12 +19,19 @@ def create_db():
     conn.commit()
     conn.close()
 
-# Función para buscar libros por sector y título
+# Función para buscar libros por sector y/o título
 def buscar_libros(sector, titulo_similar):
     conn = sqlite3.connect('base.db')
     c = conn.cursor()
-    query = "SELECT * FROM libro WHERE SECTOR=? AND TITULO LIKE ?"
-    c.execute(query, (sector, f"%{titulo_similar}%"))
+    
+    if sector == "Todos":
+        query = "SELECT * FROM libro WHERE TITULO LIKE ?"
+        params = (f"%{titulo_similar}%",)
+    else:
+        query = "SELECT * FROM libro WHERE SECTOR=? AND TITULO LIKE ?"
+        params = (sector, f"%{titulo_similar}%")
+    
+    c.execute(query, params)
     libros = c.fetchall()
     conn.close()
     return libros
@@ -59,9 +66,9 @@ def mostrar_info_libro(id_libro):
 def mostrar_libros():
     sector = combo_sector.get()
     titulo_similar = entry_buscar.get()
-    if not sector:
-        messagebox.showwarning("Advertencia", "Por favor, seleccione un sector.")
-        return
+    
+    if sector == "Seleccionar":
+        sector = "Todos"
     
     libros = buscar_libros(sector, titulo_similar)
     for item in tree.get_children():
@@ -85,7 +92,7 @@ root.geometry("600x400")
 # Crear los widgets
 tk.Label(root, text="Seleccionar Sector:").pack(pady=10)
 combo_sector = tk.StringVar(value="Seleccionar")
-combo = ttk.Combobox(root, textvariable=combo_sector, values=["sociales", "INGENIERIA", "humanidades"])
+combo = ttk.Combobox(root, textvariable=combo_sector, values=["Seleccionar", "SOCIALES", "INGENIERIA", "HUMANIDADES"])
 combo.pack(pady=5)
 combo.set("Seleccionar")
 
